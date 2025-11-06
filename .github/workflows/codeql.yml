@@ -1,36 +1,49 @@
-name: "CodeQL"
+name: Validacion de aplicacion ###Se anexa el nombre de la accion
 
-on:
-  push:
-    branches:
-      - master
-      - v4-dev
-      - "!dependabot/**"
+on: ### -> Se agrega el trigger del workflow
+  push: ### -> Se anexa los push y pull request asi como las ramas en donde se realizan
+    branches: [ main, develop ]
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches:
-      - master
-  schedule:
-    - cron: "0 0 * * 0"
+    branches: [ main ]
 
-jobs:
-  analyze:
-    name: Analyze
+### Se van agregar las ejecuciones que se realicen en el workflow
+jobs: 
+  validate: ## Primero que valide que se ejecute la version de ubuntu para nuestra aplicacion en este caso la ultima version
     runs-on: ubuntu-latest
+    
+    steps: ## Se van agregar los pasos que se van a realizar
+    - name: Checkout code
+      uses: actions/checkout@v4 ###sta acción descarga el repositorio en el ejecutor,
+      ### lo que permite ejecutar scripts u otras acciones sobre el código (como herramientas de compilación y prueba).
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2  ###Se anexa la extension de php.
+      with:
+        php-version: '8.1' ##Una vez anexada la extension de php, se define que version de php va a utilizar.
 
-      # Initializes the CodeQL tools for scanning.
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v1
-        with:
-          languages: "javascript"
-          config-file: ./.github/codeql/codeql-config.yml
+    - name: Find composer.json file
+      run: | ###Este script servira para buscar el archivo composer.json que se almaneceno en la carpeta de nuestro workflow
+        echo "Buscando composer.json en el repositorio..."
+        find . -name "composer.json" -type f
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v1
+    - name: Validate composer.json (si existe)
+      ###Este script va a confirmar si existe el archivo composer.json.
+      ###En caso de que no lo encuentre se va a buscar en subdirectorios###
+      run: | 
+        if [ -f "composer.json" ]; then
+          echo "Validando composer.json en raíz..."
+          composer validate --no-check-all
+        else
+        
+          echo "No hay composer.json en la raíz, buscando en subdirectorios..."
+          find . -name "composer.json" -type f -exec dirname {} \; | head -1 | while read dir; do
+            echo "Validando composer.json en: $dir"
+            cd "$dir"
+            composer validate --no-check-all
+            cd -
+          done
+        fi
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v1
+    - name: Check PHP syntax in entire project
+      run: | ###Se anexa el script para validar la sintaxis de php
+        find . -name "*.php" -exec php -l {} \;
